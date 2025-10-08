@@ -1,21 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic GIF Template - Mobile p5.js</title>
-    
-    <!-- Load p5.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
-    
-    <!-- Load mobile permissions library -->
-    <script src="https://cdn.jsdelivr.net/npm/mobile-p5-permissions@1.2.0/src/permissionsAll.js"></script>
-    
-    <!-- Load mobile-optimized styles -->
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Basic GIF Template - Mobile p5.js</title>
+
+  <!-- ✅ 只引入一份 p5 主库 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+
+  <!-- ✅ 引入 p5.sound 音频插件（必须在 sketch.js 前） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
+
+  <!-- ✅ 可选：移动端权限库 -->
+  <script src="https://cdn.jsdelivr.net/npm/mobile-p5-permissions@1.2.0/src/permissionsAll.js"></script>
+
+  <!-- ✅ 样式文件 -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
-    <!-- Your p5.js sketch will be loaded here -->
-    <script src="sketch.js"></script>
+  <!-- 你的 p5.js sketch -->
+  <script src="sketch.js"></script>
 </body>
 </html>

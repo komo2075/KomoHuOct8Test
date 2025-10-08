@@ -32,8 +32,8 @@ const packs = [
 ];
 
 // ----------- Playback config -----------
-const FWD_SPEED = 0.8;   // 正放速度（每帧增量）
-const BWD_SPEED = 1;   // 倒放速度
+const FWD_SPEED = 0.5;   // 正放速度（每帧增量）
+const BWD_SPEED = 0.8;   // 倒放速度
 const SHOW_HUD  = true;  // 屏幕底部提示
 const RANDOM_ORDER = true; // true=随机换主题；false=顺序循环
 
@@ -46,6 +46,13 @@ let frameIndex = 0;            // float for smoother speed
 let isTouching = false;
 let expectedCount = 0;         // for "loading..." UI
 let loadedCount = 0;
+// ----------- Audio -----------
+// 建议放到 /assets/sfx/ 里
+let sfxIn, sfxOut, sfxPressLoop;
+let audioReady = false;   // 是否已由用户手势解锁
+// 记录当前是否在按压（用于音效）
+let lastState = null;          // 记录上帧的状态
+
 
 // ----------- Preload initial segments -----------
 function preload() {
@@ -56,7 +63,18 @@ function preload() {
   // ✅ 初始就把 A(当前) 与 B(下一个) 的三段全载
   ensurePackAll(curPackIndex);     // A
   ensurePackAll(nextPackIndex);    // B
+    // 预载音效
+  if (typeof soundFormats === 'function') soundFormats('mp3','wav','ogg');
+
+  if (typeof loadSound === 'function') {
+    sfxIn        = loadSound('assets/sfx/in.mp3',        ()=>console.log('in loaded'),        e=>console.warn('in err',e));
+    sfxOut       = loadSound('assets/sfx/explode.mp3',   ()=>console.log('explode loaded'),   e=>console.warn('explode err',e));
+    sfxPressLoop = loadSound('assets/sfx/press_loop.mp3',()=>console.log('loop loaded'),      e=>console.warn('loop err',e));
+  }
 }
+
+function onSfxLoaded(snd){ console.log('SFX loaded:', snd && snd.buffer ? snd.buffer.duration : '?'); }
+function onSfxErr(err){ console.warn('SFX load error:', err); }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -64,6 +82,84 @@ function setup() {
   imageMode(CENTER);
   textAlign(CENTER, CENTER);
   frameRate(60);
+
+   // 可选：设置初始音量
+  if (sfxIn)  sfxIn.setVolume(0.6);
+  if (sfxOut) sfxOut.setVolume(0.7);
+  if (sfxPressLoop) sfxPressLoop.setVolume(0.35);
+}
+
+// 统一解锁函数
+function unlockAudio(){
+  if (typeof getAudioContext === 'function') {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state !== 'running') {
+      ctx.resume().then(()=>{ audioReady = true; console.log('Audio unlocked'); });
+    } else { audioReady = true; }
+  } else {
+    // 没有 p5.sound 也不报错
+    audioReady = true;
+  }
+}
+
+//在现有输入事件中调用 unlockAudio()，并在 INTER 才启动/停止循环音：
+function touchStarted(){ 
+  unlockAudio(); 
+  isTouching = true;  
+  handlePressAudio();
+  return false; 
+}
+
+function touchEnded(){   
+  isTouching = false; 
+  handleReleaseAudio();
+  return false; 
+}
+function mousePressed(){ 
+  unlockAudio(); 
+  isTouching = true; 
+  handlePressAudio();
+}
+function mouseReleased(){ 
+  isTouching = false; 
+  handleReleaseAudio();
+}
+
+function playInOnce() {
+  if (sfxIn && audioReady) {
+    // 避免短时间重复触发
+    if (!sfxIn.isPlaying()) sfxIn.play();
+  }
+}
+
+function playOutOnce() {
+  if (sfxOut && audioReady) {
+    sfxOut.stop(); // 防止上一次没播完
+    sfxOut.play();
+  }
+}
+
+function startPressLoop() {
+  if (sfxPressLoop && audioReady) {
+    if (!sfxPressLoop.isPlaying()) sfxPressLoop.loop(); // 循环
+  }
+}
+
+function stopPressLoop() {
+  if (sfxPressLoop) sfxPressLoop.stop();
+}
+
+// 只在 INTER 且按住时才有音乐
+function handlePressAudio() {
+  if (state === 'INTER') startPressLoop();
+}
+function handleReleaseAudio() {
+  stopPressLoop();
+}
+
+// 切状态时的收尾
+function stopAllOneShotIfNeeded() {
+  // 一般不需要，这里保留接口
 }
 
 function draw() {
@@ -74,7 +170,9 @@ function draw() {
     case 'HOLD_IN_INIT': {
       const img = firstFrame(curPackIndex, 'in');
       if (img) drawImageFit(img); else drawLoading(); // 有首帧就占位
-      if (isPackReady(curPackIndex) && isPackReady(nextPackIndex)) {
+        // 只有“音频已解锁 + A/B 两个主题都就绪”才进入 IN
+      if (audioReady && isPackReady(curPackIndex) && isPackReady(nextPackIndex)) {
+        playInOnce();     // ← 播放出现音效
         state = 'IN';
         frameIndex = 0;
       }
@@ -133,9 +231,22 @@ function draw() {
     case 'HOLD_IN_SWITCH': {
       const img = firstFrame(curPackIndex, 'in');
       if (img) drawImageFit(img); else drawLoading();
-      if (isPackReady(curPackIndex) && isPackReady(nextPackIndex)) {
+      
+      if (audioReady && isPackReady(curPackIndex) && isPackReady(nextPackIndex)) {
+        playInOnce();     // ← 播放出现音效
         state = 'IN';
         frameIndex = 0;
+      }
+      // ---- state change hook: 统一处理进入某状态时该做的事 ----
+      if (state !== lastState) {
+        if (state === 'IN' && sfxIn?.isLoaded() && audioReady && !sfxIn.isPlaying()) {
+          sfxIn.setVolume(0.6); sfxIn.play();
+        }
+        if (state === 'OUT' && sfxOut?.isLoaded() && audioReady) {
+           handleReleaseAudio();           // 停掉按压循环
+           sfxOut.stop(); sfxOut.setVolume(0.7); sfxOut.play();
+        }
+        lastState = state;
       }
       if (SHOW_HUD) drawHUD();
       return;
@@ -153,7 +264,7 @@ function runInteractive(packIdx) {
     : Math.max(frameIndex - BWD_SPEED, 0);
 
   // ✅ 靠近末尾就预取 OUT（比如还剩 5 帧时）
-  if (isTouching && frameIndex >= frames.length - 6) {
+  if (isTouching && frameIndex >= frames.length - 15) {
     ensureLoaded(packIdx, 'out');
   }
 
@@ -162,6 +273,8 @@ function runInteractive(packIdx) {
 
   // ✅ 到达末帧时：只有 OUT 已就绪才切换；否则停留在末帧
   if (Math.round(frameIndex) >= frames.length - 1) {
+    // 到末帧：停止按压循环，播放爆炸
+    stopPressLoop();
     if (isSegmentReady(packIdx, 'out')) {
       state = 'OUT';
       frameIndex = 0;
@@ -262,9 +375,42 @@ function firstFrame(packIdx, segName) {
   return arr.find(Boolean) || null;
 }
 
-// ------------------ Input ------------------
-function touchStarted(){ isTouching = true;  return false; }
-function touchEnded(){   isTouching = false; return false; }
-function mousePressed(){ isTouching = true; }
-function mouseReleased(){ isTouching = false; }
+// ------------------ Input (safe version with audio) ------------------
+function touchStarted(){
+  // 解锁音频（若存在）
+  if (typeof unlockAudio === 'function') { unlockAudio(); }
+  isTouching = true;
+  // 按压开始的音频（若存在）
+  if (typeof handlePressAudio === 'function') { handlePressAudio(); }
+  return false; // 阻止页面滚动
+}
+
+function touchEnded(){
+  isTouching = false;
+  // 按压结束的音频（若存在）
+  if (typeof handleReleaseAudio === 'function') { handleReleaseAudio(); }
+  return false;
+}
+
+function mousePressed(){
+  if (typeof unlockAudio === 'function') { unlockAudio(); }
+  isTouching = true;
+  if (typeof handlePressAudio === 'function') { handlePressAudio(); }
+}
+
+function mouseReleased(){
+  isTouching = false;
+  if (typeof handleReleaseAudio === 'function') { handleReleaseAudio(); }
+}
+
+function windowResized(){ resizeCanvas(windowWidth, windowHeight); }
+
+
+function handlePressAudio(){ if (state === 'INTER' && sfxPressLoop?.isLoaded() && audioReady && !sfxPressLoop.isPlaying()) { sfxPressLoop.setVolume(0.35); sfxPressLoop.loop(); } }
+function handleReleaseAudio(){ if (sfxPressLoop?.isPlaying()) sfxPressLoop.stop(); }
+
+function touchStarted(){ unlockAudio(); isTouching = true;  handlePressAudio(); return false; }
+function touchEnded(){   isTouching = false; handleReleaseAudio(); return false; }
+function mousePressed(){ unlockAudio(); isTouching = true;  handlePressAudio(); }
+function mouseReleased(){ isTouching = false; handleReleaseAudio(); }
 function windowResized(){ resizeCanvas(windowWidth, windowHeight); }
