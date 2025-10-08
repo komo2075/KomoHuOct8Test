@@ -1,0 +1,60 @@
+/* ============================================
+   MOBILE P5.JS STYLES
+   Mobile-optimized CSS for p5.js projects
+   ============================================ */
+
+/* Reset all default styles and prepare for mobile */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    
+    /* Disable text selection on mobile */
+    -webkit-user-select: none;
+    user-select: none;
+    
+    /* Remove tap highlights and callouts */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+/* Full-screen mobile setup */
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    
+    /* Disable all touch gestures that could interfere */
+    touch-action: none;
+    
+    /* Set default background and font */
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Position p5.js canvas */
+canvas {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
+}
+
+/* Hide scrollbars completely on mobile */
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* Additional mobile optimizations */
+body {
+    /* Prevent iOS bounce effect */
+    -webkit-overflow-scrolling: touch;
+    
+    /* Prevent zoom on inputs (if you add any) */
+    -webkit-text-size-adjust: 100%;
+    
+    /* Smooth font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
